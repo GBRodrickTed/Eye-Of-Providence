@@ -48,6 +48,10 @@ namespace EyeOfProvidence
         public static KeyCodeField MapBind;
         public static FloatSliderField MapOpac;
 
+        public static int perspectiveCount = 5;
+
+        public static List<KeyCodeField> perspectiveBinds = new List<KeyCodeField>();
+
         public static List<ConfigField> configs = new List<ConfigField>();
 
         public static void Setup()
@@ -68,14 +72,24 @@ namespace EyeOfProvidence
             configs.Add(MapOpac = new FloatSliderField(config.rootPanel, "Map Opacity", "slider.mapopac", new Tuple<float, float>(0, 1), 0.75f, 2));
             
             configs.Add(PlayerFOV = new FloatSliderField(config.rootPanel, "Player Fov", "slider.playerfov", new Tuple<float, float>(0, 360), 360, 0, true, true));
-            configs.Add(Perspective = new EnumField<PerspectiveMode>(config.rootPanel, "Perspective", "enum.perspective", PerspectiveMode.Panini));        
-            configs.Add(Stretch = new BoolField(config.rootPanel, "Stretch to View", "bool.stretch", true));
+            configs.Add(Perspective = new EnumField<PerspectiveMode>(config.rootPanel, "Perspective", "enum.perspective", PerspectiveMode.Panini));
+            for (int i = 0; i < Enum.GetNames(typeof(PerspectiveMode)).Length; i++)
+            {
+                KeyCodeField bind = new KeyCodeField(config.rootPanel, ((PerspectiveMode)i).ToString() + " Keybind", "keycode.perspective." + ((PerspectiveMode)i).ToString().ToLower(), UnityEngine.KeyCode.None);
+                configs.Add(bind);
+                perspectiveBinds.Add(bind);
+            }
+            configs.Add(Stretch = new BoolField(config.rootPanel, "Stretch to View", "bool.stretch", false));
 
             configs.Add(FisheyeFit = new FloatSliderField(config.rootPanel, "Fisheye Fit", "slider.fisheyefit", new Tuple<float, float>(0, 2), 0, 2));
             configs.Add(StereoFactor = new FloatSliderField(config.rootPanel, "Stereographic Scale", "slider.stereofactor", new Tuple<float, float>(0, 3), 0, 2));
             configs.Add(PaniniFactor = new FloatSliderField(config.rootPanel, "Panini Intensity", "slider.paninifactor", new Tuple<float, float>(0, 1), 1, 2));
 
             configs.Add(Quality = new FloatField(config.rootPanel, "Quality", "float.quality", 9, 0, 10));
+
+            
+
+            //Debug.LogError(PerspectiveMode.Equirectangular.ToString());
 
             for (int i = 0; i < configs.Count(); i++)
             {
@@ -129,26 +143,29 @@ namespace EyeOfProvidence
         }
         public static void Update()
         {
-            if (Input.GetKeyDown(UltraFOVBind.value))
+            if (Input.GetKeyUp(UltraFOVBind.value))
             {
                 UltraFOV.value = !UltraFOV.value;
                 UpdateValeus();
             }
-            if (Input.GetKeyDown(MapBind.value))
+            if (Input.GetKeyUp(MapBind.value))
             {
                 Map.value = !Map.value;
                 UpdateValeus();
             }
-            if (Input.GetKeyDown(GridBind.value))
+            if (Input.GetKeyUp(GridBind.value))
             {
                 Grid.value = !Grid.value;
                 UpdateValeus();
             }
-            /*if (Input.GetKeyDown(DebugBind.value))
+            for (int i = 0; i < perspectiveBinds.Count(); i++)
             {
-                Debug.value = !Debug.value;
-                UpdateValeus();
-            }*/
+                if (Input.GetKeyUp(perspectiveBinds[i].value))
+                {
+                    Perspective.value = ((PerspectiveMode)i);
+                    UpdateValeus();
+                }
+            }
         }
         public static void UpdateValeus()
         {
@@ -217,6 +234,7 @@ namespace EyeOfProvidence
                         PaniniFactor.hidden = false;
                         break;
                 }
+                perspectiveBinds[(int)Perspective.value].hidden = false;
             }
             
         }
