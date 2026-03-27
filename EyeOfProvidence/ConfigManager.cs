@@ -56,7 +56,7 @@ namespace EyeOfProvidence
 
             //new ConfigHeader(config.rootPanel, "<color=red>Does not confict with modded aim assist</color>", 15);
             configs.Add(UltraFOV = new BoolField(config.rootPanel, "Enable Mod", "bool.ultrafov", true));
-            configs.Add(UltraFOVBind = new KeyCodeField(config.rootPanel, "Perspective Keybind", "keycode.ultrafov", UnityEngine.KeyCode.None));
+            configs.Add(UltraFOVBind = new KeyCodeField(config.rootPanel, "Activation Keybind", "keycode.ultrafov", UnityEngine.KeyCode.None));
             /*configs.Add(Debug = new BoolField(config.rootPanel, "Debug View", "bool.debug", false));
             configs.Add(DebugBind = new KeyCodeField(config.rootPanel, "Debug Keybind", "keycode.debug", UnityEngine.KeyCode.None));*/
             configs.Add(Grid = new BoolField(config.rootPanel, "Grid View", "bool.grid", false));
@@ -211,7 +211,6 @@ namespace EyeOfProvidence
                         StereoFactor.hidden = false;
                         break;
                     case PerspectiveMode.Hammer:
-                        PlayerFOV.hidden = true;
                         break;
                     case PerspectiveMode.Panini:
                         PlayerFOV.hidden = true;
