@@ -413,6 +413,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssetHandler.cs" />
+    <Compile Include="GlobeRender.cs" />
     <Compile Include="ConfigManager.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="PluginInfo.cs" />

@@ -18,6 +18,22 @@ using UnityEngine.Audio;
 using BepInEx.Bootstrap;
 using PluginConfig;
 using UnityEngine.Rendering;
+using ULTRAKILL.Portal;
+using System.Threading;
+using UnityEngine.UIElements;
+using System.Runtime.CompilerServices;
+using Unity.Mathematics;
+
+// What needs to be done:
+// Blood/Gasoline Rendering - This is currently the most doable objective as it is not tangled within the lovecraftian terrors that are portals
+// Portal Rendering - Second most doable objective just by virtue of it's logic being exposed.
+// Fix Portals Clipping Cameras - For reasons beyond reason, if the main camera is looking in the direction of a portal, all other cameras in
+// the observable universe are bound to only look in that general direction. Practically this means the max fov is arbitrarally locked to 180
+// and any geometry outside it gets clipped. I have yet to find where this takes place so is not fixable for the time being.
+
+// What can be done:
+// Optimizations - There's room in the shader to optimize. The cameras cause the main preformance hit. Can give option to disable certain
+// cameras. Could also create globes using less cameras, though this would require a rewrite of the globe logic
 
 namespace EyeOfProvidence
 {
@@ -30,18 +46,30 @@ namespace EyeOfProvidence
         public static UKAsset<GameObject> UK_Boom { get; private set; } = new UKAsset<GameObject>("Assets/Prefabs/Attacks and Projectiles/Coin.prefab");
         public static AssetBundle UK_Prefabs;*/
         Harmony harmony = new Harmony(PluginInfo.GUID);
+        public static Plugin instance;
         AssetBundle bundle;
         GameObject globePref;
-        Camera[] cams = new Camera[6]; // 1-Front 2-Back 3-Left 4-Right 5-Up 6-Down
+        public static Camera[] cams = new Camera[6]; // 1-Front 2-Back 3-Left 4-Right 5-Up 6-Down
         static GameObject globe;
+        public static float GlobeRotX = 0;
+        public static float GlobeRotY = 0;
+        public static float GlobeRotZ = 0;
         public static PostProssesingBaby post;
+        public static Quaternion globeRotation = Quaternion.identity;
+        public static int GlobeMask = int.MaxValue;
+        public int globeMask = 0;
         Material mat;
         RenderBuffer[] chumBuckets = new RenderBuffer[3];
-        static RenderTexture tex;
+        public static RenderTexture tex;
         static RenderTexture tempTex;
         static RenderTexture tex2;
-        static Texture texst;
+        public static Texture texst;
+        public static Mesh meshTest;
+        public static Material meshMat;
         public static bool UltraFOV = true;
+
+        public static bool test = false;
+        
         public CommandBuffer bloodOilCB;
         public void Awake()
         {
@@ -54,18 +82,25 @@ namespace EyeOfProvidence
 
             AssetHandler.LoadBundle("ultra_nato");
 
+            meshTest = AssetHandler.LoadAsset<GameObject>("default").GetComponent<MeshFilter>().mesh;
+            meshMat = AssetHandler.LoadAsset<GameObject>("default").GetComponent<MeshRenderer>().material;
+
             globePref = AssetHandler.LoadAsset<GameObject>("GlobeCam");
             mat = AssetHandler.LoadAsset<Material>("coolMat");
-            //texst = AssetHandler.LoadAsset<Texture>("Gun Color Small");
+            texst = AssetHandler.LoadAsset<Texture>("Gun Color Small");
             harmony.PatchAll(typeof(XboxGamePass));
             ConfigManager.Setup();
 
+            instance = this;
+
+            globeMask = GlobeMask;
         }
 
         public void Update()
         {
             if (UltraFOV)
             {
+                //CameraController.Instance.cam.enabled = false;
                 if (CameraController.Instance)
                 {
                     //Debug.LogError(CameraController.Instance.cam.targetTexture.name);
@@ -91,10 +126,49 @@ namespace EyeOfProvidence
             }
 
 
+            UpdateGlobe();
+
+            /*if (Input.GetKeyUp(KeyCode.M))
+            {
+                test = !test;
+            }*/
+            ConfigManager.Update();
+        }
+        public void GlobeMaskCheck()
+        {
+            globeMask = GlobeMask;
+            int mask = globeMask;
+            for (int i = 0; i < cams.Length; i++)
+            {
+                cams[i].enabled = (mask % 2 == 1);
+                mask = mask >> 1;
+            }
+        }
+        public void UpdateGlobe()
+        {
             if (globe)
             {
-                globe.transform.position = CameraController.Instance.gameObject.transform.position;
-                globe.transform.rotation = CameraController.Instance.gameObject.transform.rotation;
+                if (globeMask != GlobeMask)
+                {
+                    GlobeMaskCheck();
+                    ClearGlobe();
+                    SetupGlobe();
+                }
+
+                /*globe.transform.position = CameraController.Instance.cam.transform.position;
+                globe.transform.rotation = CameraController.Instance.cam.transform.rotation;
+                globe.transform.rotation *= Quaternion.Inverse(PostProssesingBaby.globeRotation);*/
+
+                if (globeRotation != PostProssesingBaby.globeRotation)
+                {
+                    globe.transform.localRotation = Quaternion.Euler(0, 0, 1) * Quaternion.Inverse(PostProssesingBaby.globeRotation);
+                    //globeRotation = PostProssesingBaby.globeRotation;
+                    //globe.transform.rotation = Quaternion.Euler(0, 0, 1) * Quaternion.Inverse(PostProssesingBaby.globeRotation);
+                }
+                
+                //globe.transform.rotation *= Quaternion.Euler(GlobeRotY * -180, GlobeRotX * -180, GlobeRotZ * -180);
+                //Vector3 rot = CameraController.Instance.gameObject.transform.rotation.eulerAngles - new Vector3(GlobeRotY * 90, GlobeRotX * 180, 0);// + new Vector3(GlobeRotX, GlobeRotY, 0)
+                //globe.transform.rotation = Quaternion.Euler(rot);
                 if (tex)
                 {
                     if (post.mainCam.targetTexture != tex)
@@ -103,9 +177,7 @@ namespace EyeOfProvidence
                     }
                 }
             }
-            ConfigManager.Update();
         }
-
         public void SetupGlobe()
         {
             //Debug.LogError("Initializing Globe");
@@ -113,7 +185,9 @@ namespace EyeOfProvidence
             PostProcessV2_Handler.Instance.reinitializeTextures = true;
             PostProcessV2_Handler.Instance.SetupRTs();
 
-            globe = Instantiate<GameObject>(globePref, NewMovement.instance.transform.position, Quaternion.identity);
+            globe = Instantiate<GameObject>(globePref, CameraController.Instance.cam.transform);
+            //globe = Instantiate<GameObject>(globePref, CameraController.Instance.cam.transform);
+
             for (int i = 0; i < cams.Length; i++)
             {
                 cams[i] = globe.transform.GetChild(i).GetComponent<Camera>();
@@ -121,6 +195,7 @@ namespace EyeOfProvidence
                 cams[i].farClipPlane = CameraController.Instance.cam.farClipPlane;
                 cams[i].cullingMask = CameraController.Instance.cam.cullingMask;
             }
+            GlobeMaskCheck();
             //post = CameraController.Instance.gameObject.AddComponent<PostProssesingBaby>();
             //post.mainCam = cams[0];//CameraController.Instance.cam.transform.Find("HUD Camera").GetComponent<Camera>();
             post = CameraController.Instance.cam.transform.gameObject.AddComponent<PostProssesingBaby>();
@@ -133,6 +208,9 @@ namespace EyeOfProvidence
 
             post.postEffectMaterial = mat;
             post.cams = cams;
+
+            globe.transform.localPosition = Vector3.zero;
+            globe.transform.localRotation = Quaternion.Euler(0, 0, 1);
         }
 
         public void ClearGlobe()
@@ -168,6 +246,7 @@ namespace EyeOfProvidence
         public static class XboxGamePass
         {
             public static bool reinitTex = UltraFOV;
+            public static bool renderCam = false;
 
             [HarmonyPostfix]
             [HarmonyPatch(typeof(PostProcessV2_Handler), nameof(PostProcessV2_Handler.OnPreRenderCallback))]
@@ -211,6 +290,29 @@ namespace EyeOfProvidence
                     reinitTex = true;
                 }
             }
+            /*[HarmonyPrefix]
+            [HarmonyPatch(typeof(PortalRenderV2), nameof(PortalRenderV2.Render))]
+            public static bool lal(PortalRenderV2 __instance)
+            {
+                //return !test;
+                if (UltraFOV)
+                {
+                    if (post)
+                    {
+                        if (__instance.mainCam == post.mainCam)
+                        {
+                            for (int i = 0; i < cams.Length; i++)
+                            {
+                                if (cams[i] != null)
+                                {
+                                    __instance.Render(cams[i]);
+                                }
+                            }
+                        }
+                    }
+                }
+                return true;
+            }*/
 
             [HarmonyPostfix]
             [HarmonyPatch(typeof(PostProcessV2_Handler), nameof(PostProcessV2_Handler.SetupRTs))]
@@ -242,6 +344,7 @@ namespace EyeOfProvidence
                 if (tex)
                 {
                     //__instance.mainCam.targetTexture = tex;
+                    //Graphics.Blit(texst, tex);
                 }
 
                 //Debug.LogError("fef");
@@ -265,7 +368,10 @@ namespace EyeOfProvidence
                         antiAliasing = 1,
                         filterMode = FilterMode.Point
                     };
-                    //Graphics.Blit(texst, tex);
+
+                    Graphics.Blit(texst, tex);
+
+
                     __instance.mainTex = tex;
                     __instance.buffers[0] = __instance.mainTex.colorBuffer;
                     __instance.buffers[1] = __instance.reusableBufferA.colorBuffer;

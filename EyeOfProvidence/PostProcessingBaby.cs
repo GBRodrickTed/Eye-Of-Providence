@@ -1,4 +1,5 @@
-﻿using Logic;
+﻿using JetBrains.Annotations;
+using Logic;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,8 +14,10 @@ namespace EyeOfProvidence
     public class PostProssesingBaby : MonoBehaviour
     {
         public static float PlayerFOV = 360;
-        public static PerspectiveMode Perspective = PerspectiveMode.Equirectangular;
+        public static PostProssesingBaby instance;
+        public static ProjectionMode Projection = ProjectionMode.Equirectangular;
         public static float Quality = 9;
+        public static Quaternion globeRotation = Quaternion.identity;
         
         public static bool Debug = false;
         public static bool Grid = false;
@@ -23,7 +26,10 @@ namespace EyeOfProvidence
         public static float MapOpac = 0;
         public static bool Stretch = true;
 
-        public static float StereoFactor = 0;
+        public static float GlobeRotX = 0;
+        public static float GlobeRotY = 0;
+        public static float GlobeRotZ = 0;
+
         public static float FisheyeFit = 0;
         public static float PaniniFactor = 1;
         enum CameraFace : int
@@ -40,19 +46,26 @@ namespace EyeOfProvidence
         public Material postEffectMaterial;
         public Camera[] cams;
         List<RenderTexture> camTexs = new List<RenderTexture>();
+        public float fov = 360;
         public float quality = 9;
+        float prevQuality;
+
         public bool debugMode = false;
         public bool mapMode = false;
         public float mapOpac = 0.5f;
         public bool gridMode = false;
         public float gridOpac = 0.5f;
+
+        public float globeRotX = 0;
+        public float globeRotY = 0;
+        public float globeRotZ = 0;
+
         public bool stretch = true;
         public float fisheyeFit = 0;
-        public float stereoFactor = 0;
         public float paniniFactor = 1;
-        public float fov = 360;
-        public int mode = 0;
-        float prevQuality;
+        
+        public int projectionMode = 0;
+        
         int qualityPixel = 1;
         public float aspect = 1;
         public float prevAspect = 1;
@@ -71,21 +84,24 @@ namespace EyeOfProvidence
             prevQuality = quality;
 
             fov = PlayerFOV;
-            mode = (int)Perspective;
+            projectionMode = (int)Projection;
             stretch = Stretch;
 
             debugMode = Debug;
             gridOpac = GridOpac;
             mapOpac = MapOpac;
 
+            globeRotX = GlobeRotX;
+            globeRotY = GlobeRotY;
+            globeRotZ = GlobeRotZ;
+
             fisheyeFit = FisheyeFit;
             paniniFactor = PaniniFactor;
 
             postEffectMaterial.SetFloat("_FOV", fov);
-            postEffectMaterial.SetFloat("_MODE", mode);
+            postEffectMaterial.SetFloat("_MODE", projectionMode);
             postEffectMaterial.SetFloat("_STRETCH", stretch ? 1f : 0);
             postEffectMaterial.SetFloat("_ASPECT", !stretch ? ((float)Screen.width / (float)Screen.height) : 1f);
-            postEffectMaterial.SetFloat("_FISHEYE_STEREO_FACTOR", stereoFactor);
             postEffectMaterial.SetFloat("_FISHEYE_FIT", fisheyeFit);
             postEffectMaterial.SetFloat("_PANINI_FACTOR", paniniFactor);
 
@@ -95,8 +111,41 @@ namespace EyeOfProvidence
             postEffectMaterial.SetFloat("_GRID_FACTOR", gridOpac);
             postEffectMaterial.SetFloat("_MAP_FACTOR", mapOpac);
 
+            UpdateGlobeRotations();
+
+            instance = this;
+
             RefreshRenderTextures();
         }
+
+        private void SetGlobeRotations(float yaw, float pitch, float roll)
+        {
+            globeRotation = Quaternion.Euler(roll * 180, pitch * 180, yaw * 180);
+            Matrix4x4 rot = Matrix4x4.Rotate(globeRotation);
+            Plugin.instance.UpdateGlobe();
+            //rot.SetRow(0, new Vector4(Mathf.Cos(yaw), -Mathf.Sin(yaw), 0));
+            //rot.SetRow(1, new Vector4(Mathf.Sin(yaw), Mathf.Cos(yaw), 0));
+            //rot.SetRow(2, new Vector4(0, 0, 1));
+            //postEffectMaterial.SetMatrix("_yaw", rot);
+
+            //rot.SetRow(0, new Vector4(Mathf.Cos(pitch), 0, Mathf.Sin(pitch)));
+            //rot.SetRow(0, new Vector4(0, 1, 0));
+            //rot.SetRow(0, new Vector4(-Mathf.Sin(pitch), 0, Mathf.Cos(pitch)));
+            //postEffectMaterial.SetMatrix("_pitch", rot);
+
+            //rot.SetRow(0, new Vector4(1, 0, 0));
+            //rot.SetRow(0, new Vector4(0, Mathf.Cos(roll), -Mathf.Sin(roll)));
+            //rot.SetRow(0, new Vector4(0, Mathf.Sin(roll), Mathf.Cos(roll)));
+            //postEffectMaterial.SetMatrix("_roll", rot);
+
+            postEffectMaterial.SetMatrix("_rotMatrix", rot);
+            postEffectMaterial.SetFloat("_GLOBE_ROTATE", 1);
+        }
+        public void UpdateGlobeRotations()
+        {
+            SetGlobeRotations(globeRotZ, globeRotX, globeRotY);
+        }
+
         private void Update()
         {
             if (PlayerFOV != fov)
@@ -144,16 +193,28 @@ namespace EyeOfProvidence
                 postEffectMaterial.SetFloat("_MAP_FACTOR", mapOpac);
             }
 
-            if (stereoFactor != StereoFactor)
+            if (globeRotX != GlobeRotX)
             {
-                stereoFactor = StereoFactor;
-                postEffectMaterial.SetFloat("_FISHEYE_STEREO_FACTOR", stereoFactor);
+                globeRotX = GlobeRotX;
+                SetGlobeRotations(globeRotZ, globeRotX, globeRotY);
+            }
+
+            if (globeRotY != GlobeRotY)
+            {
+                globeRotY = GlobeRotY;
+                SetGlobeRotations(globeRotZ, globeRotX, globeRotY);
+            }
+
+            if (globeRotZ != GlobeRotZ)
+            {
+                globeRotZ = GlobeRotZ;
+                SetGlobeRotations(globeRotZ, globeRotX, globeRotY);
             }
 
             if (FisheyeFit != fisheyeFit)
             {
                 fisheyeFit = FisheyeFit;
-                postEffectMaterial.SetFloat("_FISHEYE_FIT", fisheyeFit);
+                postEffectMaterial.SetFloat("_FISHEYE_EQUIDIST_FIT", fisheyeFit);
             }
 
             if (paniniFactor != PaniniFactor)
@@ -174,15 +235,15 @@ namespace EyeOfProvidence
                 prevHeight = height;
             }
 
-            if (mode != (int)Perspective)
+            if (projectionMode != (int)Projection)
             {
-                mode = (int)Perspective;
-                postEffectMaterial.SetFloat("_MODE", mode);
+                projectionMode = (int)Projection;
+                postEffectMaterial.SetFloat("_MODE", projectionMode);
                 width = Screen.width;
                 height = Screen.height;
                 prevWidth = width;
                 prevHeight = height;
-                if (mode == (int)PerspectiveMode.Panini)
+                /*if (mode == (int)PerspectiveMode.Panini)
                 {
                     if (cams[(int)CameraFace.Back] != null)
                     {
@@ -194,7 +255,7 @@ namespace EyeOfProvidence
                     {
                         cams[(int)CameraFace.Back].gameObject.SetActive(true);
                     }
-                }
+                }*/
                 RefreshRenderTextures();
             }
             
@@ -231,7 +292,7 @@ namespace EyeOfProvidence
             src.depth,
             src.format);*/
 
-            //Graphics.Blit(cam1.targetTexture, cam1Tex);
+            //Graphics.Blit(cams[(int)CameraFace.Front].targetTexture, dest);
             Matrix4x4 viewToWorld = mainCam.cameraToWorldMatrix;
 
             postEffectMaterial.SetMatrix("_viewToWorld", viewToWorld);
