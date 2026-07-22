@@ -3,6 +3,7 @@ using Logic;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -32,6 +33,7 @@ namespace EyeOfProvidence
 
         public static float FisheyeFit = 0;
         public static float PaniniFactor = 1;
+        public static float WinkelFit = 0;
         enum CameraFace : int
         {
             Front = 0,
@@ -63,6 +65,7 @@ namespace EyeOfProvidence
         public bool stretch = true;
         public float fisheyeFit = 0;
         public float paniniFactor = 1;
+        public float winkelFit = 0;
         
         public int projectionMode = 0;
         
@@ -97,13 +100,15 @@ namespace EyeOfProvidence
 
             fisheyeFit = FisheyeFit;
             paniniFactor = PaniniFactor;
+            winkelFit = WinkelFit;
 
             postEffectMaterial.SetFloat("_FOV", fov);
             postEffectMaterial.SetFloat("_MODE", projectionMode);
             postEffectMaterial.SetFloat("_STRETCH", stretch ? 1f : 0);
             postEffectMaterial.SetFloat("_ASPECT", !stretch ? ((float)Screen.width / (float)Screen.height) : 1f);
-            postEffectMaterial.SetFloat("_FISHEYE_FIT", fisheyeFit);
+            postEffectMaterial.SetFloat("_FISHEYE_EQUIDIST_FIT", fisheyeFit);
             postEffectMaterial.SetFloat("_PANINI_FACTOR", paniniFactor);
+            postEffectMaterial.SetFloat("_WINKEL_FIT", winkelFit);
 
             postEffectMaterial.SetFloat("_DEBUG", debugMode ? 1 : 0);
             postEffectMaterial.SetFloat("_GRID", gridMode ? 1 : 0);
@@ -111,6 +116,7 @@ namespace EyeOfProvidence
             postEffectMaterial.SetFloat("_GRID_FACTOR", gridOpac);
             postEffectMaterial.SetFloat("_MAP_FACTOR", mapOpac);
 
+            //UpdateCamInfo();
             UpdateGlobeRotations();
 
             instance = this;
@@ -223,6 +229,12 @@ namespace EyeOfProvidence
                 postEffectMaterial.SetFloat("_PANINI_FACTOR", paniniFactor);
             }
 
+            if (winkelFit != WinkelFit)
+            {
+                winkelFit = WinkelFit;
+                postEffectMaterial.SetFloat("_WINKEL_FIT", winkelFit);
+            }
+
             if (stretch != Stretch)
             {
                 stretch = Stretch;
@@ -264,6 +276,147 @@ namespace EyeOfProvidence
         {
             
         }
+        public void UpdateCamInfo()
+        {
+            // self note: in the shader, planes are 2 by 2
+            for (int i = 0; i < 6; i++)
+            {
+                if (!cams[i])
+                {
+                    Vector3 pos = new Vector3(30000000, 3000000, 300000);
+                    Vector3 forward = pos;
+                    Vector3 up = pos;
+                    Vector3 right = pos;
+
+                    List<Vector4> info = new List<Vector4>{
+                    pos,
+                    forward,
+                    up,
+                    right
+                };
+
+                    postEffectMaterial.SetVectorArray("_Cam" + (i + 1) + "_Info", info);
+                }
+                else
+                {
+                    Transform target = cams[i].transform;
+                    Transform parent = target.transform.parent;
+                    float factorDist = 1;
+                    float aspectt = 1;
+                    float scaleX = 1;
+                    float scaleY = 1f;
+
+                    float planeW = 2;
+                    float planeH = 2;
+
+                    if (!cams[i].name.Contains("Up") && !cams[i].name.Contains("Down"))
+                    {
+                        factorDist = 1f / Mathf.Sqrt(3);
+                    }
+                    else
+                    {
+                        //factorX = 1f/2f;
+
+                    }
+                    //factorDist = (1f / (2f * Mathf.Sqrt(3)));
+                    factorDist = 1;
+
+                    if (cams[i].name.Contains("Down") || cams[i].name.Contains("Up"))
+                    {
+                        //yt = 1f / 1.15f;
+                        //yt = 2;
+                    }
+
+                    if (!cams[i].name.Contains("Back"))
+                    {
+                        //scaleY = 0.5f;
+                    }
+                    else
+                    {
+                    }
+                    //yt = 0.5f;
+                    //xt = 0.5f;
+
+                    float yt = 1f / scaleY;
+                    float xt = 1f / scaleX;
+
+                    planeW *= (1f / xt);
+                    planeH *= (1f / yt);
+                    aspectt = planeW / planeH;
+
+                    Vector3 pos = parent.InverseTransformDirection(target.transform.forward) * factorDist;
+                    Vector3 forward = parent.InverseTransformDirection(target.transform.forward);
+                    Vector3 up = parent.InverseTransformDirection(target.transform.up) * yt;
+                    Vector3 right = parent.InverseTransformDirection(target.transform.right) * xt;
+
+                    float aspect = aspectt;
+
+                    float fov = Mathf.Atan((planeW / 2) / Vector3.Distance(Vector3.zero, pos)) * 2;
+
+                    cams[i].aspect = aspect;
+                    cams[i].fieldOfView = Camera.VerticalToHorizontalFieldOfView(fov * Mathf.Rad2Deg, 1f / cams[i].aspect);
+
+                    //Debug.Log(cams[i].name + " " + cams[i].aspect + " " + Camera.VerticalToHorizontalFieldOfView(cams[i].fieldOfView, cams[i].aspect));
+
+                    List<Vector4> info = new List<Vector4>{
+                    pos,
+                    forward,
+                    up,
+                    right
+                };
+
+                    postEffectMaterial.SetVectorArray("_Cam" + (i + 1) + "_Info", info);
+                }
+
+            }
+        }
+        public void UpdateCamInfo(CamInfo[] infos)
+        {
+            Vector3 shutUp = new Vector3(1000000, 1000000, 1000000);
+            for (int i = 0; i < cams.Length; i++)
+            {
+                if (i >= infos.Length)
+                {
+                    postEffectMaterial.SetVectorArray("_Cam" + (i + 1) + "_Info", new List<Vector4> { shutUp , shutUp , shutUp , shutUp });
+                    continue;
+                }
+                CamInfo info = infos[i];
+                Vector2 scale = info.scale;
+                Vector2 invScale = new Vector2(1f / scale.x, 1f / scale.y);
+
+                Vector3 forward = info.camRot * Vector3.forward;
+                Vector3 pos = forward * info.posDist;
+                Vector3 right = info.camRot * Vector3.right * invScale.x;
+                Vector3 up = info.camRot * Vector3.up * invScale.y;
+
+                float planeW = 2;
+                float planeH = 2;
+
+                planeW *= (1f / invScale.x);
+                planeH *= (1f / invScale.y);
+                float aspect = planeW / planeH;
+
+                float fov = Mathf.Atan((planeW / 2) / Vector3.Distance(Vector3.zero, pos)) * 2;
+
+                cams[i].transform.localRotation = info.camRot;
+                cams[i].aspect = aspect;
+                cams[i].fieldOfView = Camera.VerticalToHorizontalFieldOfView(fov * Mathf.Rad2Deg, 1f / aspect);
+
+                List<Vector4> gpuInfo = new List<Vector4>{
+                    pos,
+                    forward,
+                    up,
+                    right
+                };
+
+                postEffectMaterial.SetVectorArray("_Cam" + (i + 1) + "_Info", gpuInfo);
+            }
+        }
+
+        public void SetRayMethod(int rayMethod)
+        {
+            postEffectMaterial.SetInt("_RAY_METHOD", rayMethod);
+        }
         public void RefreshRenderTextures()
         {
             for (int i = 0; i < cams.Length; i++)
@@ -293,17 +446,14 @@ namespace EyeOfProvidence
             src.format);*/
 
             //Graphics.Blit(cams[(int)CameraFace.Front].targetTexture, dest);
-            Matrix4x4 viewToWorld = mainCam.cameraToWorldMatrix;
+            //Matrix4x4 viewToWorld = mainCam.cameraToWorldMatrix;
 
-            postEffectMaterial.SetMatrix("_viewToWorld", viewToWorld);
+            //postEffectMaterial.SetMatrix("_viewToWorld", viewToWorld);
 
-            postEffectMaterial.SetTexture("_Cam_Front", cams[(int)CameraFace.Front].targetTexture);
-            postEffectMaterial.SetTexture("_Cam_Back", cams[(int)CameraFace.Back].targetTexture);
-            postEffectMaterial.SetTexture("_Cam_Left", cams[(int)CameraFace.Left].targetTexture);
-            postEffectMaterial.SetTexture("_Cam_Right", cams[(int)CameraFace.Right].targetTexture);
-            postEffectMaterial.SetTexture("_Cam_Up", cams[(int)CameraFace.Up].targetTexture);
-            postEffectMaterial.SetTexture("_Cam_Down", cams[(int)CameraFace.Down].targetTexture);
-
+            for (int i = 0; i < 6; i++)
+            {
+                if (cams[i]) postEffectMaterial.SetTexture("_Cam" + (i + 1), cams[i].targetTexture);
+            }
 
             Graphics.Blit(src, dest, postEffectMaterial);
             //RenderTexture.ReleaseTemporary(rendTex);

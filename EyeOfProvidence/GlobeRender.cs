@@ -12,18 +12,30 @@ namespace EyeOfProvidence
     public class GlobeRender : MonoBehaviour
     {
         public CommandBuffer bloodOilCB;
+        public CommandBuffer limboCB;
         public Camera mainCam;
+
+        public Dictionary<GlobeSkyboxType, GlobeSkybox> skyboxGlobes = new Dictionary<GlobeSkyboxType, GlobeSkybox>();
 
         /*BloodsplatterManager bsm;
         StainVoxelManager svm;
         PostProcessV2_Handler pph;*/
         Mesh mesh;
-        public void Awake()
+        public void Start()
         {
             Init();
         }
         public void Init()
         {
+            /*for (int i = 0; i < Enum.GetNames(typeof(GlobeSkyboxType)).Length; i++)
+            {
+                skyboxGlobes.Add((GlobeSkyboxType)i, null);
+            }*/
+            /**/
+            skyboxGlobes.Add(GlobeSkyboxType.Limbo, null);
+            skyboxGlobes.Add(GlobeSkyboxType.Theater, null);
+            skyboxGlobes.Add(GlobeSkyboxType.Space, null);
+
             if (this.bloodOilCB == null)
             {
                 this.bloodOilCB = new CommandBuffer();
@@ -32,7 +44,77 @@ namespace EyeOfProvidence
                 
                 //CameraEvent.BeforeForwardAlph
             }
-            Camera.onPostRender += OnPreRenderCallback;
+
+            if (limboCB == null)
+            {
+                limboCB = new CommandBuffer();
+                limboCB.name = "Limbo Butt Fart";
+                /*limboCB.SetGlobalTexture("_LimboSky", Plugin.texst);
+                limboCB.SetGlobalFloat("_LimboSkyWidth", Plugin.texst.width);
+                limboCB.SetGlobalFloat("_LimboSkyHeight", Plugin.texst.height);
+                Plugin.cams[0].AddCommandBuffer(CameraEvent.BeforeGBuffer, limboCB);*/
+            }
+
+            Camera.onPreRender += OnPreRenderCallback;
+            Camera.onPostRender += OnPostRenderCallback;
+        }
+        public bool HasSkybox(GlobeSkyboxType type)
+        {
+            return skyboxGlobes[type] != null;
+        }
+        public bool RenderSkybox(GlobeSkyboxType type)
+        {
+            if (skyboxGlobes[type] == null)
+            {
+                return false;
+            }
+            skyboxGlobes[type].RenderSkybox();
+            return true;
+        }
+        public Texture GetSkyboxTexture(GlobeSkyboxType type, int index)
+        {
+            if (skyboxGlobes[type] == null)
+            {
+                return null;
+            }
+            return skyboxGlobes[type].GetSkyboxTexture(index);
+        }
+        public void CreateSkyboxGlobe(GlobeSkyboxType type, Transform target)
+        {
+            if (skyboxGlobes[type] != null)
+            {
+                skyboxGlobes[type].DestroySkyboxGlobe();
+            }
+            //Debug.LogError(target.name);
+            skyboxGlobes[type] = GlobeSkybox.CreateSkyboxGlobe(target);
+        }
+        public void UpdateSkyboxGlobes()
+        {
+            GlobeSkybox[] gs = skyboxGlobes.Values.ToArray();
+            for (int i = 0; i < gs.Length; i++)
+            {
+                if (gs[i])
+                {
+                    gs[i].UpdateSkyboxCams();
+                }
+            }
+        }
+        public void DestroySkyboxGlobes()
+        {
+            GlobeSkybox[] gs = skyboxGlobes.Values.ToArray();
+            for (int i = 0; i < gs.Length; i++)
+            {
+                if (gs[i])
+                {
+                    gs[i].DestroySkyboxGlobe();
+                }
+            }
+        }
+        public void Render2(Camera cam)
+        {
+            Shader.SetGlobalTexture("_LimboSky", Plugin.texst);
+            Shader.SetGlobalFloat("_LimboSkyWidth", Plugin.texst.width);
+            Shader.SetGlobalFloat("_LimboSkyHeight", Plugin.texst.height);
         }
         public void Render(Camera cam)
         {
@@ -139,14 +221,96 @@ namespace EyeOfProvidence
             //Debug.LogError(cam.name);
         }
 
-        private void OnPreRenderCallback(Camera cam)
+        private void OnPostRenderCallback(Camera cam)
         {
+            
             if (cam.name == "Camera Front")
             {
-                //Debug.LogError(cam.name);
-                Render(cam);
+                
+                
+                //Render(cam);
+            } else
+            {
+                
             }
-            
+        }
+        private void OnPreRenderCallback(Camera cam)
+        {
+            Texture exter = Plugin.bexst;
+            int camIndex = 0;
+            //exter = Plugin.bexst;
+            //Render2(cam);
+            bool inTheClub = false;
+            // Would be cheaper to use command buffer proby
+            // names typically shouldn't be hard coded but efficienty and such
+            switch (cam.name)
+            {
+                case "Globe Cam 1":
+                    inTheClub = true;
+                    camIndex = 0;
+                    break;
+                case "Globe Cam 2":
+                    inTheClub = true;
+                    camIndex = 1;
+                    break;
+                case "Globe Cam 3":
+                    inTheClub = true;
+                    camIndex = 2;
+                    exter = Plugin.texst;
+                    break;
+                case "Globe Cam 4":
+                    inTheClub = true;
+                    camIndex = 3;
+                    break;
+                case "Globe Cam 5":
+                    inTheClub = true;
+                    camIndex = 4;
+                    break;
+                case "Globe Cam 6":
+                    inTheClub = true;
+                    camIndex = 5;
+                    break;
+            }
+            if (inTheClub)
+            {
+                //Debug.LogError("Winning");
+                Texture limboSkybox = GetSkyboxTexture(GlobeSkyboxType.Limbo, camIndex);
+                if (limboSkybox)
+                {
+                    Shader.SetGlobalTexture("_LimboSky", limboSkybox);
+                    Shader.SetGlobalFloat("_LimboSkyWidth", limboSkybox.width);
+                    Shader.SetGlobalFloat("_LimboSkyHeight", limboSkybox.height);
+                }
+
+                Texture spaceSkybox = GetSkyboxTexture(GlobeSkyboxType.Space, camIndex);
+                if (spaceSkybox)
+                {
+                    Shader.SetGlobalTexture("_SpaceSky", spaceSkybox);
+                }
+                //Shader.SetGlobalTexture("_VoidTex", exter);
+                //Shader.SetGlobalTexture("_SpaceSky", exter);
+            }
+
+            /*for (int i = 0; i < Plugin.cams.Length; i++)
+            {
+                if (Plugin.cams[i] == cam)
+                {
+                    if (i == 0)
+                    {
+                        exter = Plugin.bexst;
+                    } else
+                    {
+                        exter = Plugin.texst;
+                    }
+                    
+                }
+            }
+            if (cam.name == "Camera Front")
+            {
+                
+                //Debug.LogError(cam.name);
+
+            }*/
         }
     }
 }

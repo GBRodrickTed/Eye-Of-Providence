@@ -413,8 +413,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssetHandler.cs" />
+    <Compile Include="CamInfo.cs" />
+    <Compile Include="GlobeInfo.cs" />
     <Compile Include="GlobeRender.cs" />
     <Compile Include="ConfigManager.cs" />
+    <Compile Include="GlobeSkybox.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="PluginInfo.cs" />
     <Compile Include="PostProcessingBaby.cs" />
